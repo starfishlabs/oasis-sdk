@@ -1,5 +1,8 @@
 //! Tests for the accounts module.
-use std::collections::BTreeMap;
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    iter::FromIterator,
+};
 
 use oasis_core_runtime::common::cbor;
 
@@ -488,6 +491,56 @@ fn test_fee_disbursement() {
         1.into(),
         "remainder should be disbursed to the common pool"
     );
+}
+
+#[test]
+fn test_query_list_accounts() {
+    let mut mock = mock::Mock::default();
+    let mut ctx = mock.create_ctx();
+
+    let accs = Accounts::query_list_accounts(&mut ctx).expect("query accounts should succeed");
+    assert_eq!(accs.len(), 0, "there should be no accounts initially");
+
+    let dn = Denomination::NATIVE;
+    let d1: Denomination = "den1".parse().unwrap();
+    let gen = Genesis {
+        balances: {
+            let mut balances = BTreeMap::new();
+            // Alice.
+            balances.insert(keys::alice::address(), {
+                let mut denominations = BTreeMap::new();
+                denominations.insert(dn.clone(), 1_000_000.into());
+                denominations.insert(d1.clone(), 1_000.into());
+                denominations
+            });
+            // Bob.
+            balances.insert(keys::bob::address(), {
+                let mut denominations = BTreeMap::new();
+                denominations.insert(d1.clone(), 2_000.into());
+                denominations
+            });
+            balances
+        },
+        total_supplies: {
+            let mut total_supplies = BTreeMap::new();
+            total_supplies.insert(dn.clone(), 1_000_000.into());
+            total_supplies.insert(d1.clone(), 3_000.into());
+            total_supplies
+        },
+        ..Default::default()
+    };
+    Accounts::init(&mut ctx, &gen);
+
+    ctx.with_tx(mock::transaction(), |mut tx_ctx, _call| {
+        let accs =
+            Accounts::query_list_accounts(&mut tx_ctx).expect("query accounts should succeed");
+        assert_eq!(accs.len(), 2, "there should be two accounts");
+        assert_eq!(
+            accs,
+            BTreeSet::from_iter([keys::alice::address(), keys::bob::address()]),
+            "list accounts addresses should be correct"
+        );
+    });
 }
 
 #[test]

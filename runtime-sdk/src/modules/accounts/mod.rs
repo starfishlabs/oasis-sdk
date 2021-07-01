@@ -1,5 +1,8 @@
 //! Accounts module.
-use std::{collections::BTreeMap, convert::TryInto};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    convert::TryInto,
+};
 
 use num_traits::Zero;
 use once_cell::sync::Lazy;
@@ -133,6 +136,9 @@ pub trait API {
 
     /// Fetch an account's current nonce.
     fn get_nonce<S: storage::Store>(state: S, address: Address) -> Result<u64, Error>;
+
+    /// Fetch account addresses.
+    fn list_accounts<S: storage::Store>(state: S) -> Result<BTreeSet<Address>, Error>;
 
     /// Fetch an account's current balances.
     fn get_balances<S: storage::Store>(
@@ -351,6 +357,16 @@ impl API for Module {
         Ok(account.nonce)
     }
 
+    fn list_accounts<S: storage::Store>(state: S) -> Result<BTreeSet<Address>, Error> {
+        let store = storage::PrefixStore::new(state, &MODULE_NAME);
+        let balances: BTreeMap<AddressWithDenomination, token::Quantity> =
+            storage::TypedStore::new(storage::PrefixStore::new(store, &state::BALANCES))
+                .iter()
+                .collect();
+
+        Ok(balances.into_keys().map(|bal| bal.0).collect())
+    }
+
     fn get_balances<S: storage::Store>(
         state: S,
         address: Address,
@@ -392,6 +408,10 @@ impl Module {
 
     fn query_nonce<C: Context>(ctx: &mut C, args: types::NonceQuery) -> Result<u64, Error> {
         Self::get_nonce(ctx.runtime_state(), args.address)
+    }
+
+    fn query_list_accounts<C: Context>(ctx: &mut C) -> Result<BTreeSet<Address>, Error> {
+        Self::list_accounts(ctx.runtime_state())
     }
 
     fn query_balances<C: Context>(
@@ -443,6 +463,9 @@ impl module::MethodHandler for Module {
             "accounts.Balances" => module::DispatchResult::Handled((|| {
                 let args = cbor::from_value(args).map_err(|_| Error::InvalidArgument)?;
                 Ok(cbor::to_value(&Self::query_balances(ctx, args)?))
+            })()),
+            "accounts.List" => module::DispatchResult::Handled((|| {
+                Ok(cbor::to_value(&Self::query_list_accounts(ctx)?))
             })()),
             _ => module::DispatchResult::Unhandled(args),
         }
