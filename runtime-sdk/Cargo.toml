@@ -26,6 +26,9 @@ impl-trait-for-tuples = "0.2.1"
 base64 = "0.13.0"
 once_cell = "1.8.0"
 slog = "2.7.0"
+evm = "0.28.0"
+primitive-types = { version = "0.9", default-features = false, features = ["rlp", "num-traits"] }
+tiny-keccak = { version = "2.0.2", features = ["keccak"] }
 
 [features]
 default = ["oasis-runtime-sdk-macros"]
