@@ -463,7 +463,7 @@ impl module::MethodHandler for Module {
 
 impl Module {
     /// Initialize state from genesis.
-    fn init<C: Context>(ctx: &mut C, genesis: Genesis) {
+    pub fn init<C: Context>(ctx: &mut C, genesis: Genesis) {
         // Create accounts.
         let mut store = storage::PrefixStore::new(ctx.runtime_state(), &MODULE_NAME);
         let mut accounts =

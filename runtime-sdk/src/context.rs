@@ -16,13 +16,17 @@ use oasis_core_runtime::{
     consensus::roothash,
     protocol::HostInfo,
     storage::mkvs,
-    transaction::{context::Context as RuntimeContext, tags::Tags},
+    transaction::{
+        context::Context as RuntimeContext,
+        tags::{Tag, Tags},
+    },
 };
 
 use crate::{
     event::Event,
     modules::core::Error,
-    runtime, storage,
+    runtime,
+    storage::{self, NestedStore, Store},
     types::{address::Address, message::MessageEventHookInvocation, transaction},
 };
 
@@ -40,7 +44,7 @@ const MODE_SIMULATE_TX: &str = "simulate_tx";
 
 impl fmt::Display for Mode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", Into::<&'static str>::into(self))
+        f.write_str(self.into())
     }
 }
 
@@ -54,12 +58,16 @@ impl From<&Mode> for &'static str {
     }
 }
 
+/// Local configuration key the value of which determines whether expensive queries should be
+/// allowed or not.
+const LOCAL_CONFIG_ALLOW_EXPENSIVE_QUERIES: &str = "allow_expensive_queries";
+
 /// Runtime SDK context.
 pub trait Context {
     /// Runtime that the context is being invoked in.
     type Runtime: runtime::Runtime;
     /// Runtime state output type.
-    type Store: storage::Store;
+    type Store: Store;
 
     /// Returns a logger.
     fn get_logger(&self, module: &'static str) -> slog::Logger;
@@ -75,6 +83,22 @@ pub trait Context {
     /// Whether the transaction is just being simulated.
     fn is_simulation(&self) -> bool {
         self.mode() == Mode::SimulateTx
+    }
+
+    /// Whether expensive queries are allowed based on local configuration.
+    ///
+    /// This method will always return `true` if `is_check_only` returns `false` to avoid any bugs
+    /// that would cause non-determinism in non-check-tx contexts.
+    fn are_expensive_queries_allowed(&self) -> bool {
+        if !self.is_check_only() {
+            return true;
+        }
+
+        self.host_info()
+            .local_config
+            .get(LOCAL_CONFIG_ALLOW_EXPENSIVE_QUERIES)
+            .map(|v| cbor::from_value(v.clone()).unwrap_or_default())
+            .unwrap_or_default()
     }
 
     /// Information about the host environment.
@@ -100,8 +124,11 @@ pub trait Context {
     /// Current epoch.
     fn epoch(&self) -> consensus::beacon::EpochTime;
 
-    /// Emits an event.
+    /// Emits an event by transforming it into a tag and emitting a tag.
     fn emit_event<E: Event>(&mut self, event: E);
+
+    /// Emits a tag.
+    fn emit_tag(&mut self, tag: Tag);
 
     /// Returns a child io_ctx.
     fn io_ctx(&self) -> IoContext;
@@ -113,6 +140,15 @@ pub trait Context {
     /// Fetches a value entry associated with the context.
     fn value<V: Any>(&mut self, key: &'static str) -> ContextValue<'_, V>;
 
+    /// Executes a function in a child context with the given mode.
+    ///
+    /// The context collects its own messages and starts with an empty set of context values.
+    fn with_child<F, Rs>(&mut self, mode: Mode, f: F) -> Rs
+    where
+        F: FnOnce(
+            RuntimeBatchContext<'_, Self::Runtime, storage::OverlayStore<&mut dyn Store>>,
+        ) -> Rs;
+
     /// Executes a function in a simulation context.
     ///
     /// The simulation context collects its own messages and starts with an empty set of context
@@ -120,8 +156,11 @@ pub trait Context {
     fn with_simulation<F, Rs>(&mut self, f: F) -> Rs
     where
         F: FnOnce(
-            RuntimeBatchContext<'_, Self::Runtime, storage::OverlayStore<&mut Self::Store>>,
-        ) -> Rs;
+            RuntimeBatchContext<'_, Self::Runtime, storage::OverlayStore<&mut dyn Store>>,
+        ) -> Rs,
+    {
+        self.with_child(Mode::SimulateTx, f)
+    }
 }
 
 /// Runtime SDK batch-wide context.
@@ -165,7 +204,7 @@ pub trait TxContext: Context {
 }
 
 /// Dispatch context for the whole batch.
-pub struct RuntimeBatchContext<'a, R: runtime::Runtime, S: storage::Store> {
+pub struct RuntimeBatchContext<'a, R: runtime::Runtime, S: NestedStore> {
     mode: Mode,
 
     host_info: &'a HostInfo,
@@ -191,7 +230,7 @@ pub struct RuntimeBatchContext<'a, R: runtime::Runtime, S: storage::Store> {
     _runtime: PhantomData<R>,
 }
 
-impl<'a, R: runtime::Runtime, S: storage::Store> RuntimeBatchContext<'a, R, S> {
+impl<'a, R: runtime::Runtime, S: NestedStore> RuntimeBatchContext<'a, R, S> {
     /// Create a new dispatch context.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
@@ -255,7 +294,7 @@ impl<'a, R: runtime::Runtime, S: storage::Store> RuntimeBatchContext<'a, R, S> {
     }
 }
 
-impl<'a, R: runtime::Runtime, S: storage::Store> Context for RuntimeBatchContext<'a, R, S> {
+impl<'a, R: runtime::Runtime, S: NestedStore> Context for RuntimeBatchContext<'a, R, S> {
     type Runtime = R;
     type Store = S;
 
@@ -295,11 +334,16 @@ impl<'a, R: runtime::Runtime, S: storage::Store> Context for RuntimeBatchContext
         self.block_tags.push(event.into_tag());
     }
 
+    fn emit_tag(&mut self, tag: Tag) {
+        self.block_tags.push(tag);
+    }
+
     fn io_ctx(&self) -> IoContext {
         IoContext::create_child(&self.io_ctx)
     }
 
     fn commit(self) -> (Tags, Vec<(roothash::Message, MessageEventHookInvocation)>) {
+        self.runtime_storage.commit();
         (self.block_tags, self.messages)
     }
 
@@ -307,17 +351,17 @@ impl<'a, R: runtime::Runtime, S: storage::Store> Context for RuntimeBatchContext
         ContextValue::new(self.values.entry(key))
     }
 
-    fn with_simulation<F, Rs>(&mut self, f: F) -> Rs
+    fn with_child<F, Rs>(&mut self, mode: Mode, f: F) -> Rs
     where
         F: FnOnce(
-            RuntimeBatchContext<'_, Self::Runtime, storage::OverlayStore<&mut Self::Store>>,
+            RuntimeBatchContext<'_, Self::Runtime, storage::OverlayStore<&mut dyn Store>>,
         ) -> Rs,
     {
         // Create a store wrapped by an overlay store so any state changes don't leak.
-        let store = storage::OverlayStore::new(&mut self.runtime_storage);
+        let store = storage::OverlayStore::new((&mut self.runtime_storage) as &mut dyn Store);
 
-        let sim_ctx = RuntimeBatchContext {
-            mode: Mode::SimulateTx,
+        let child_ctx = RuntimeBatchContext {
+            mode,
             host_info: self.host_info,
             runtime_header: self.runtime_header,
             runtime_round_results: self.runtime_round_results,
@@ -327,19 +371,20 @@ impl<'a, R: runtime::Runtime, S: storage::Store> Context for RuntimeBatchContext
             io_ctx: self.io_ctx.clone(),
             logger: self
                 .logger
-                .new(o!("ctx" => "dispatch", "mode" => MODE_SIMULATE_TX)),
-            // Other than for storage, simulation has a blank slate.
+                .new(o!("ctx" => "dispatch", "mode" => Into::<&'static str>::into(&mode))),
+            // Other than for storage, child context has a blank slate.
             block_tags: Tags::new(),
-            max_messages: self.max_messages,
+            // NOTE: Since a limit is enforced (which is a u32) this cast is always safe.
+            max_messages: self.max_messages.saturating_sub(self.messages.len() as u32),
             messages: Vec::new(),
             values: BTreeMap::new(),
             _runtime: PhantomData,
         };
-        f(sim_ctx)
+        f(child_ctx)
     }
 }
 
-impl<'a, R: runtime::Runtime, S: storage::Store> BatchContext for RuntimeBatchContext<'a, R, S> {
+impl<'a, R: runtime::Runtime, S: NestedStore> BatchContext for RuntimeBatchContext<'a, R, S> {
     fn with_tx<F, Rs>(&mut self, tx: transaction::Transaction, f: F) -> Rs
     where
         F: FnOnce(
@@ -389,7 +434,7 @@ impl<'a, R: runtime::Runtime, S: storage::Store> BatchContext for RuntimeBatchCo
 }
 
 /// Per-transaction/method dispatch sub-context.
-pub struct RuntimeTxContext<'round, 'store, R: runtime::Runtime, S: storage::Store> {
+pub struct RuntimeTxContext<'round, 'store, R: runtime::Runtime, S: Store> {
     mode: Mode,
 
     host_info: &'round HostInfo,
@@ -422,7 +467,7 @@ pub struct RuntimeTxContext<'round, 'store, R: runtime::Runtime, S: storage::Sto
     _runtime: PhantomData<R>,
 }
 
-impl<'round, 'store, R: runtime::Runtime, S: storage::Store> Context
+impl<'round, 'store, R: runtime::Runtime, S: Store> Context
     for RuntimeTxContext<'round, 'store, R, S>
 {
     type Runtime = R;
@@ -464,6 +509,10 @@ impl<'round, 'store, R: runtime::Runtime, S: storage::Store> Context
         self.tags.push(event.into_tag());
     }
 
+    fn emit_tag(&mut self, tag: Tag) {
+        self.tags.push(tag);
+    }
+
     fn io_ctx(&self) -> IoContext {
         IoContext::create_child(&self.io_ctx)
     }
@@ -477,17 +526,17 @@ impl<'round, 'store, R: runtime::Runtime, S: storage::Store> Context
         ContextValue::new(self.values.entry(key))
     }
 
-    fn with_simulation<F, Rs>(&mut self, f: F) -> Rs
+    fn with_child<F, Rs>(&mut self, mode: Mode, f: F) -> Rs
     where
         F: FnOnce(
-            RuntimeBatchContext<'_, Self::Runtime, storage::OverlayStore<&mut Self::Store>>,
+            RuntimeBatchContext<'_, Self::Runtime, storage::OverlayStore<&mut dyn Store>>,
         ) -> Rs,
     {
         // Create a store wrapped by an overlay store so any state changes don't leak.
-        let store = storage::OverlayStore::new(&mut self.store);
+        let store = storage::OverlayStore::new((&mut self.store) as &mut dyn Store);
 
         let sim_ctx = RuntimeBatchContext {
-            mode: Mode::SimulateTx,
+            mode,
             host_info: self.host_info,
             runtime_header: self.runtime_header,
             runtime_round_results: self.runtime_round_results,
@@ -509,7 +558,7 @@ impl<'round, 'store, R: runtime::Runtime, S: storage::Store> Context
     }
 }
 
-impl<R: runtime::Runtime, S: storage::Store> TxContext for RuntimeTxContext<'_, '_, R, S> {
+impl<R: runtime::Runtime, S: Store> TxContext for RuntimeTxContext<'_, '_, R, S> {
     fn tx_auth_info(&self) -> &transaction::AuthInfo {
         &self.tx_auth_info
     }

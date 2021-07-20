@@ -2,7 +2,7 @@
 use std::{convert::TryFrom, fmt};
 
 /// Name/type of the token.
-#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, cbor::Encode)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, cbor::Encode)]
 #[cbor(transparent)]
 pub struct Denomination(Vec<u8>);
 
@@ -72,6 +72,13 @@ impl cbor::Decode for Denomination {
     }
 }
 
+#[cfg(feature = "oasis-runtime-sdk")]
+impl From<oasis_runtime_sdk::types::token::Denomination> for Denomination {
+    fn from(d: oasis_runtime_sdk::types::token::Denomination) -> Self {
+        Self(d.into_vec())
+    }
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error(
@@ -106,6 +113,20 @@ impl fmt::Display for BaseUnits {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{} {}", self.0, self.1)?;
         Ok(())
+    }
+}
+
+#[cfg(feature = "oasis-runtime-sdk")]
+impl From<oasis_runtime_sdk::types::token::BaseUnits> for BaseUnits {
+    fn from(a: oasis_runtime_sdk::types::token::BaseUnits) -> Self {
+        Self(a.0, a.1.into())
+    }
+}
+
+#[cfg(feature = "oasis-runtime-sdk")]
+impl From<&oasis_runtime_sdk::types::token::BaseUnits> for BaseUnits {
+    fn from(a: &oasis_runtime_sdk::types::token::BaseUnits) -> Self {
+        Self(a.0, a.1.clone().into())
     }
 }
 
