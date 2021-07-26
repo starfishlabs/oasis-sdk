@@ -1,3 +1,5 @@
+use std::collections::BTreeSet;
+
 use thiserror::Error;
 
 use oasis_runtime_sdk::{
@@ -9,7 +11,8 @@ use oasis_runtime_sdk::{
         core,
         core::{Module as Core, API as _},
     },
-    types::transaction::CallResult,
+    storage::Prefix,
+    types::transaction::{AuthInfo, CallResult},
 };
 
 pub mod types;
@@ -81,6 +84,25 @@ impl sdk::module::BlockHandler for Module {}
 impl sdk::module::InvariantHandler for Module {}
 
 impl sdk::module::MethodHandler for Module {
+    fn prefetch(
+        _prefixes: &mut BTreeSet<Prefix>,
+        method: &str,
+        body: cbor::Value,
+        _auth_info: &AuthInfo,
+    ) -> sdk::module::DispatchResult<cbor::Value, Result<(), RuntimeError>> {
+        match method {
+            "keyvalue.Insert" => {
+                // TODO: prefetching.
+                sdk::module::DispatchResult::Handled(Ok(()))
+            }
+            "keyvalue.Remove" => {
+                // TODO: prefetching.
+                sdk::module::DispatchResult::Handled(Ok(()))
+            }
+            _ => sdk::module::DispatchResult::Unhandled(body),
+        }
+    }
+
     fn dispatch_call<C: TxContext>(
         ctx: &mut C,
         method: &str,

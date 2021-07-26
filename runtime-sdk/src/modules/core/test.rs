@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use oasis_core_runtime::types::BATCH_WEIGHT_LIMIT_QUERY_METHOD;
 
@@ -6,11 +6,17 @@ use crate::{
     context::{BatchContext, Context, Mode, TxContext},
     core::common::version::Version,
     crypto::multisig,
-    dispatcher, module,
+    dispatcher,
+    error::RuntimeError,
+    module,
     module::{AuthHandler as _, BlockHandler, Module as _},
     runtime::Runtime,
+    storage::Prefix,
     testing::{keys, mock},
-    types::{token, transaction, transaction::TransactionWeight},
+    types::{
+        token, transaction,
+        transaction::{AuthInfo, TransactionWeight},
+    },
 };
 
 use super::{Module as Core, Parameters, API as _, GAS_WEIGHT_NAME};
@@ -92,6 +98,21 @@ impl module::Module for GasWasterModule {
 }
 
 impl module::MethodHandler for GasWasterModule {
+    fn prefetch(
+        _prefixes: &mut BTreeSet<Prefix>,
+        method: &str,
+        body: cbor::Value,
+        _auth_info: &AuthInfo,
+    ) -> module::DispatchResult<cbor::Value, Result<(), RuntimeError>> {
+        match method {
+            Self::METHOD_WASTE_GAS => {
+                // TODO: prefetching.
+                module::DispatchResult::Handled(Ok(()))
+            }
+            _ => module::DispatchResult::Unhandled(body),
+        }
+    }
+
     fn dispatch_call<C: TxContext>(
         ctx: &mut C,
         method: &str,
