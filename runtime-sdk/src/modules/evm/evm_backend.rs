@@ -50,13 +50,17 @@ impl<'c, C: crate::Context> EVMBackend for Backend<'c, C> {
         primitive_types::H256::default()
     }
     fn block_number(&self) -> primitive_types::U256 {
-        primitive_types::U256::default()
+        let ctx = self.ctx.borrow();
+        let block_number = ctx.runtime_header().round;
+        primitive_types::U256::from(block_number)
     }
     fn block_coinbase(&self) -> primitive_types::H160 {
         primitive_types::H160::default()
     }
     fn block_timestamp(&self) -> primitive_types::U256 {
-        primitive_types::U256::zero()
+        let ctx = self.ctx.borrow();
+        let timestamp = ctx.runtime_header().timestamp;
+        primitive_types::U256::from(timestamp)
     }
     fn block_difficulty(&self) -> primitive_types::U256 {
         primitive_types::U256::zero()
@@ -65,7 +69,9 @@ impl<'c, C: crate::Context> EVMBackend for Backend<'c, C> {
         primitive_types::U256::zero()
     }
     fn chain_id(&self) -> primitive_types::U256 {
-        primitive_types::U256::default()
+        let ctx = self.ctx.borrow();
+        let runtime_id = ctx.runtime_id();
+        primitive_types::U256::from(runtime_id)
     }
     fn exists(&self, _address: primitive_types::H160) -> bool {
         true
