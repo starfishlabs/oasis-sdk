@@ -3,8 +3,9 @@ use std::cell::RefCell;
 
 use crate::storage::{self, Store as _};
 
-use crate::modules::evm::types::{H160, H256, U256};
+use crate::modules::evm::types::{H160, H256, U256, StdU64};
 use evm::backend::{Apply, ApplyBackend, Backend as EVMBackend, Basic, Log};
+use oasis_core_runtime::common::crypto::hash::Hash;
 
 #[derive(Clone, Eq, PartialEq, cbor::Encode, cbor::Decode, Default)]
 pub struct Vicinity {
@@ -38,6 +39,11 @@ pub const ACCOUNTS: &[u8] = &[0xea];
 pub const CODES: &[u8] = &[0xec];
 /// Prefix for Ethereum account storage in our storage (maps H160||H256 -> H256).
 pub const STORAGES: &[u8] = &[0xe5];
+/// Prefix for Ethereum block hashes(only for last 256 blocks excluding current) 
+/// storage in our storage (maps H160||U256 -> H256).
+pub const HASHES: &[u8] = &[0xe7];
+
+pub const BLOCK_TH: u64 = 256;
 
 impl<'c, C: crate::Context> EVMBackend for Backend<'c, C> {
     fn gas_price(&self) -> primitive_types::U256 {
@@ -46,8 +52,22 @@ impl<'c, C: crate::Context> EVMBackend for Backend<'c, C> {
     fn origin(&self) -> primitive_types::H160 {
         self.vicinity.origin.into()
     }
-    fn block_hash(&self, _number: primitive_types::U256) -> primitive_types::H256 {
-        primitive_types::H256::default()
+    fn block_hash(&self, number: primitive_types::U256) -> primitive_types::H256 {
+        let mut ctx = self.ctx.borrow_mut();
+        let state = ctx.runtime_state();
+
+        let store =
+            storage::PrefixStore::new(state, &crate::modules::evm::MODULE_NAME);
+        let hashes = 
+            storage::PrefixStore::new(store, &crate::modules::evm::evm_backend::HASHES);
+        let block_hashes = storage::TypedStore::new(hashes);
+
+        let number = StdU64::from(number.as_u64());
+        if let Some(hash) = block_hashes.get::<_, Hash>(&number) {
+            primitive_types::H256::from_slice(hash.truncated(256))
+        } else {
+            primitive_types::H256::default()
+        }
     }
     fn block_number(&self) -> primitive_types::U256 {
         let ctx = self.ctx.borrow();
@@ -69,14 +89,14 @@ impl<'c, C: crate::Context> EVMBackend for Backend<'c, C> {
         primitive_types::U256::zero()
     }
     fn chain_id(&self) -> primitive_types::U256 {
-        let ctx = self.ctx.borrow();
-        let runtime_id = ctx.runtime_id();
-        primitive_types::U256::from(runtime_id)
+        // let ctx = self.ctx.borrow();
+        // let runtime_id = ctx.runtime_id();
+        // primitive_types::U256::from(runtime_id as bytes)
+        primitive_types::U256::default()
     }
     fn exists(&self, _address: primitive_types::H160) -> bool {
         true
     }
-
     fn basic(&self, address: primitive_types::H160) -> Basic {
         let addr: H160 = address.into();
 

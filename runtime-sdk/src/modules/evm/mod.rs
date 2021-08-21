@@ -15,7 +15,7 @@ use crate::{
     types::transaction::{AddressSpec, CallResult},
 };
 
-use types::{H160, H256, U256};
+use types::{H160, H256, U256, StdU64};
 
 pub mod evm_backend;
 pub mod types;
@@ -305,6 +305,30 @@ impl module::MigrationHandler for Module {
 
 impl module::AuthHandler for Module {}
 
-impl module::BlockHandler for Module {}
+impl module::BlockHandler for Module {
+    fn end_block<C: Context>(ctx: &mut C) {
+        let block_number = ctx.runtime_header().round;
+        let block_hash = ctx.runtime_header().encoded_hash();
+        let state = ctx.runtime_state();
+
+        let store =
+            storage::PrefixStore::new(state, &crate::modules::evm::MODULE_NAME);
+        let hashes = 
+            storage::PrefixStore::new(store, &crate::modules::evm::evm_backend::HASHES);
+        let mut block_hashes =
+            storage::TypedStore::new(hashes);
+
+        let current_number = block_number;
+        let block_number = StdU64::from(block_number);
+        block_hashes.insert(&block_number, block_hash);
+
+        if current_number > crate::modules::evm::evm_backend::BLOCK_TH {
+            let start_number = current_number - crate::modules::evm::evm_backend::BLOCK_TH;
+            let start_number: StdU64 = StdU64::from(start_number);
+            block_hashes.remove(&start_number);
+        }
+    }
+
+}
 
 impl module::InvariantHandler for Module {}

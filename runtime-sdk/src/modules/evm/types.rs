@@ -119,6 +119,7 @@ impl U256 {
     }
 }
 
+
 #[derive(Clone, Copy, Default, Eq, PartialEq)]
 pub struct H160(primitive_types::H160);
 
@@ -162,5 +163,26 @@ impl H160 {
 
     pub fn as_bytes(&self) -> &[u8] {
         self.0.as_bytes()
+    }
+}
+
+#[derive(Clone, Copy, Default, Eq, PartialEq)]
+pub struct StdU64{
+    data: u64, 
+    bytes: [u8; 8]
+}
+
+impl From<u64> for StdU64{
+    fn from(a: u64) -> StdU64{
+        StdU64{
+            data: a,
+            bytes: a.to_le_bytes()
+        }
+    }
+}
+
+impl AsRef<[u8]> for StdU64 {
+    fn as_ref(&self) -> &[u8] {
+        &(self.bytes)
     }
 }
