@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":[["CONSENSUS_VERSION",""],["PROTOCOL_VERSION",""]],"struct":[["Version","A protocol or runtime version."]]};

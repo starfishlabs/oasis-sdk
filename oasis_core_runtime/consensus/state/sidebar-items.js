@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":[["StateError",""]],"mod":[["roothash","Roothash state in the consensus layer."],["staking","Staking state in the consensus layer."]],"struct":[["ConsensusState","Provides consensus state tree from the host."]]};

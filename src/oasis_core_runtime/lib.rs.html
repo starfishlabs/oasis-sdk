@@ -1,0 +1,218 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `/home/runner/.cargo/git/checkouts/oasis-core-b85a3d4915ce3795/2b35f69/runtime/src/lib.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>lib.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled><link rel="stylesheet" type="text/css" href="../../dark.css" disabled><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../oasis_core_runtime/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../oasis_core_runtime/index.html"><div class="logo-container"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../oasis_core_runtime/index.html"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
+<span id="2">2</span>
+<span id="3">3</span>
+<span id="4">4</span>
+<span id="5">5</span>
+<span id="6">6</span>
+<span id="7">7</span>
+<span id="8">8</span>
+<span id="9">9</span>
+<span id="10">10</span>
+<span id="11">11</span>
+<span id="12">12</span>
+<span id="13">13</span>
+<span id="14">14</span>
+<span id="15">15</span>
+<span id="16">16</span>
+<span id="17">17</span>
+<span id="18">18</span>
+<span id="19">19</span>
+<span id="20">20</span>
+<span id="21">21</span>
+<span id="22">22</span>
+<span id="23">23</span>
+<span id="24">24</span>
+<span id="25">25</span>
+<span id="26">26</span>
+<span id="27">27</span>
+<span id="28">28</span>
+<span id="29">29</span>
+<span id="30">30</span>
+<span id="31">31</span>
+<span id="32">32</span>
+<span id="33">33</span>
+<span id="34">34</span>
+<span id="35">35</span>
+<span id="36">36</span>
+<span id="37">37</span>
+<span id="38">38</span>
+<span id="39">39</span>
+<span id="40">40</span>
+<span id="41">41</span>
+<span id="42">42</span>
+<span id="43">43</span>
+<span id="44">44</span>
+<span id="45">45</span>
+<span id="46">46</span>
+<span id="47">47</span>
+<span id="48">48</span>
+<span id="49">49</span>
+<span id="50">50</span>
+<span id="51">51</span>
+<span id="52">52</span>
+<span id="53">53</span>
+<span id="54">54</span>
+<span id="55">55</span>
+<span id="56">56</span>
+<span id="57">57</span>
+<span id="58">58</span>
+<span id="59">59</span>
+<span id="60">60</span>
+<span id="61">61</span>
+<span id="62">62</span>
+<span id="63">63</span>
+<span id="64">64</span>
+<span id="65">65</span>
+<span id="66">66</span>
+<span id="67">67</span>
+<span id="68">68</span>
+<span id="69">69</span>
+<span id="70">70</span>
+<span id="71">71</span>
+<span id="72">72</span>
+<span id="73">73</span>
+<span id="74">74</span>
+<span id="75">75</span>
+<span id="76">76</span>
+<span id="77">77</span>
+<span id="78">78</span>
+<span id="79">79</span>
+<span id="80">80</span>
+<span id="81">81</span>
+<span id="82">82</span>
+<span id="83">83</span>
+<span id="84">84</span>
+<span id="85">85</span>
+<span id="86">86</span>
+<span id="87">87</span>
+<span id="88">88</span>
+<span id="89">89</span>
+<span id="90">90</span>
+<span id="91">91</span>
+<span id="92">92</span>
+<span id="93">93</span>
+<span id="94">94</span>
+<span id="95">95</span>
+<span id="96">96</span>
+<span id="97">97</span>
+<span id="98">98</span>
+<span id="99">99</span>
+<span id="100">100</span>
+<span id="101">101</span>
+<span id="102">102</span>
+<span id="103">103</span>
+<span id="104">104</span>
+<span id="105">105</span>
+<span id="106">106</span>
+<span id="107">107</span>
+<span id="108">108</span>
+</pre><pre class="rust"><code><span class="doccomment">//! Oasis Core runtime SDK.
+//!
+//! # Examples
+//!
+//! To create a minimal runtime that doesn&#39;t expose any APIs to the
+//! outside world, you need to call the `start_runtime` function:
+//! ```rust,ignore
+//! oasis_core_runtime::start_runtime(Some(Box::new(reg)), config);
+//! ```
+//!
+//! This will start the required services needed to communicate with
+//! the worker host.
+</span><span class="attribute">#![feature(test)]
+#![feature(box_into_pin)]
+#![feature(arbitrary_self_types)]
+
+</span><span class="kw">use </span>lazy_static::lazy_static;
+<span class="attribute">#[cfg(target_env = <span class="string">&quot;sgx&quot;</span>)]
+</span><span class="kw">use </span>sgx_isa::{AttributesFlags, Report};
+
+<span class="attribute">#[cfg_attr(test, macro_use)]
+</span><span class="kw">extern crate </span>base64_serde;
+
+<span class="attribute">#[macro_use]
+</span><span class="kw">pub mod </span>common;
+<span class="kw">pub mod </span>cache;
+<span class="kw">pub mod </span>config;
+<span class="kw">pub mod </span>consensus;
+<span class="kw">pub mod </span>dispatcher;
+<span class="kw">pub mod </span>enclave_rpc;
+<span class="kw">pub mod </span>init;
+<span class="kw">pub mod </span>macros;
+<span class="kw">pub mod </span>protocol;
+<span class="kw">pub mod </span>rak;
+<span class="kw">pub mod </span>storage;
+<span class="kw">pub mod </span>transaction;
+<span class="kw">pub mod </span>types;
+
+<span class="kw">use </span><span class="kw">crate</span>::common::version::{Version, CONSENSUS_VERSION, PROTOCOL_VERSION};
+
+<span class="attribute">#[cfg(target_env = <span class="string">&quot;sgx&quot;</span>)]
+</span><span class="kw">use </span><span class="self">self</span>::common::sgx::avr::{EnclaveIdentity, MrSigner};
+
+<span class="macro">lazy_static! </span>{
+    <span class="kw">pub static </span><span class="kw-2">ref </span>BUILD_INFO: BuildInfo = {
+        <span class="comment">// Non-SGX builds are insecure by definition.
+        </span><span class="attribute">#[cfg(not(target_env = <span class="string">&quot;sgx&quot;</span>))]
+        </span><span class="kw">let </span>is_secure = <span class="bool-val">false</span>;
+
+        <span class="comment">// SGX build security depends on how it was built.
+        </span><span class="attribute">#[cfg(target_env = <span class="string">&quot;sgx&quot;</span>)]
+        </span><span class="kw">let </span>is_secure = {
+            <span class="comment">// Optimistically start out as &quot;it could be secure&quot;, and any single
+            // insecure build time option will propagate failure.
+            </span><span class="kw">let </span>maybe_secure = <span class="bool-val">true</span>;
+
+            <span class="comment">// AVR signature verification MUST be enabled.
+            </span><span class="kw">let </span>maybe_secure = maybe_secure &amp;&amp; <span class="macro">option_env!</span>(<span class="string">&quot;OASIS_UNSAFE_SKIP_AVR_VERIFY&quot;</span>).is_none();
+
+            <span class="comment">// Disallow debug enclaves MUST be enabled.
+            </span><span class="kw">let </span>maybe_secure = maybe_secure &amp;&amp; <span class="macro">option_env!</span>(<span class="string">&quot;OASIS_UNSAFE_ALLOW_DEBUG_ENCLAVES&quot;</span>).is_none();
+
+            <span class="comment">// IAS `GROUP_OUT_OF_DATE` and `CONFIGRUATION_NEEDED` responses
+            // MUST count as IAS failure.
+            //
+            // Rationale: This is how IAS signifies that the host environment
+            // is insecure (eg: SMT is enabled when it should not be).
+            </span><span class="kw">let </span>maybe_secure = maybe_secure &amp;&amp; <span class="macro">option_env!</span>(<span class="string">&quot;OASIS_UNSAFE_LAX_AVR_VERIFY&quot;</span>).is_none();
+
+            <span class="comment">// The enclave MUST NOT be a debug one.
+            </span><span class="kw">let </span>maybe_secure = maybe_secure &amp;&amp; !Report::for_self().attributes.flags.contains(AttributesFlags::DEBUG);
+
+            <span class="comment">// The enclave MUST NOT be signed by a test key,
+            </span><span class="kw">let </span>enclave_identity = EnclaveIdentity::current().unwrap();
+            <span class="kw">let </span>fortanix_mrsigner = MrSigner::from(<span class="string">&quot;9affcfae47b848ec2caf1c49b4b283531e1cc425f93582b36806e52a43d78d1a&quot;</span>);
+            <span class="kw">let </span>maybe_secure = maybe_secure &amp;&amp; (enclave_identity.mr_signer != fortanix_mrsigner);
+
+            maybe_secure
+        };
+
+        BuildInfo {
+            protocol_version: PROTOCOL_VERSION,
+            consensus_version: CONSENSUS_VERSION,
+            is_secure,
+        }
+    };
+}
+
+<span class="doccomment">/// Runtime build information.
+</span><span class="kw">pub struct </span>BuildInfo {
+    <span class="doccomment">/// Supported runtime protocol version.
+    </span><span class="kw">pub </span>protocol_version: Version,
+    <span class="doccomment">/// Supported consensus protocol version.
+    </span><span class="kw">pub </span>consensus_version: Version,
+    <span class="doccomment">/// True iff the build can provide integrity and confidentiality.
+    </span><span class="kw">pub </span>is_secure: bool,
+}
+
+<span class="comment">// Re-exports.
+</span><span class="kw">pub use </span><span class="self">self</span>::{
+    enclave_rpc::{demux::Demux <span class="kw">as </span>RpcDemux, dispatcher::Dispatcher <span class="kw">as </span>RpcDispatcher},
+    init::start_runtime,
+    protocol::Protocol,
+    transaction::dispatcher::Dispatcher <span class="kw">as </span>TxnDispatcher,
+};
+
+<span class="comment">// Re-export the cbor crate.
+</span><span class="kw">pub use </span>cbor;
+</code></pre></div>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="oasis_core_runtime" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0-nightly (c0941dfb5 2022-08-21)" ></div></body></html>

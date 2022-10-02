@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":[["Dispatcher","Runtime call dispatcher."]],"trait":[["Initializer","Interface for dispatcher initializers."]]};

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":[["LAST_EPOCH","Last epoch that we processed."],["REWARDS","Map of epochs to rewards pending distribution."]]};
